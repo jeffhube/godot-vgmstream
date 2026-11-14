@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.17)
 if(CMAKE_C_COMPILER)
 endif()
 
-set(LIBNAME "EXTENSION-NAME") # "The name of the library"
+set(LIBNAME "godot-vgmstream")
 set(GODOT_PROJECT_DIR "project" CACHE STRING "The directory of a Godot project folder")
 
 # Make sure all the dependencies are satisfied
@@ -44,20 +44,42 @@ get_target_property(GODOTCPP_PLATFORM godot::cpp GODOTCPP_PLATFORM)
 # Now we can specify our own project which will inherit any global cmake properties or variables that have been defined.
 project(godot-cpp-template
     VERSION 1.0
-    DESCRIPTION "This repository serves as a quickstart template for GDExtension development with Godot 4.0+."
-    HOMEPAGE_URL "https://github.com/enetheru/godot-cpp-template/tree/main"
-    LANGUAGES CXX
+    DESCRIPTION "Godot GDExtension for playing vgmstream audio."
+    LANGUAGES C CXX
 )
 
 add_library(${LIBNAME} SHARED)
+
+file(GLOB_RECURSE VGMSTREAM_SOURCES CONFIGURE_DEPENDS
+    "${PROJECT_SOURCE_DIR}/src/thirdparty/vgmstream/src/*.c"
+)
 
 target_sources(${LIBNAME}
     PRIVATE
     src/register_types.cpp
     src/register_types.h
-    src/example_class.cpp
-    src/example_class.h
+    src/audio_stream_awb.cpp
+    src/audio_stream_awb.h
+    ${VGMSTREAM_SOURCES}
 )
+
+target_include_directories(${LIBNAME}
+    PRIVATE
+    src/thirdparty/vgmstream/src
+    src/thirdparty/vgmstream/ext_includes
+)
+
+target_compile_definitions(${LIBNAME}
+    PRIVATE
+    VGM_USE_G7221
+    VGM_USE_G719
+    VGM_USE_ATRAC9
+    VGM_LOG_OUTPUT
+)
+
+if(UNIX)
+    target_link_libraries(${LIBNAME} PRIVATE m)
+endif()
 
 # Fetch a list of the xml files to use for documentation and add to our target
 file(GLOB_RECURSE DOC_XML LIST_DIRECTORIES NO CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/doc_classes/*.xml")
@@ -72,6 +94,7 @@ endif()
 target_link_libraries(${LIBNAME} PRIVATE godot-cpp)
 
 # Require at least C++17 for this target
+set_property(TARGET ${LIBNAME} PROPERTY C_STANDARD 99)
 set_property(TARGET ${LIBNAME} PROPERTY CXX_STANDARD 17)
 
 set_target_properties(${LIBNAME}
@@ -79,7 +102,7 @@ set_target_properties(${LIBNAME}
     # The generator expression here prevents msvc from adding a Debug or Release subdir.
     RUNTIME_OUTPUT_DIRECTORY "$<1:${PROJECT_SOURCE_DIR}/bin/${GODOTCPP_PLATFORM}>"
 
-    PREFIX ""
+    PREFIX "${CMAKE_SHARED_LIBRARY_PREFIX}"
     OUTPUT_NAME "${LIBNAME}${GODOTCPP_SUFFIX}"
 )
 

@@ -2,3 +2,6 @@
 	path = godot-cpp
 	url = https://github.com/godotengine/godot-cpp.git
 	branch = 4.3
+[submodule "src/thirdparty/vgmstream"]
+	path = src/thirdparty/vgmstream
+	url = https://github.com/vgmstream/vgmstream.git

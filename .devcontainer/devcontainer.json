@@ -1,0 +1,20 @@
+{
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"EditorConfig.EditorConfig",
+				"mhutchie.git-graph",
+				"xaver.clang-format"
+			]
+		}
+	},
+	"mounts": [
+		"source=vscode-server-user-data,target=/home/vscode/.vscode-server/data/User,type=volume",
+		"source=copilot-session-state,target=/home/vscode/.copilot,type=volume",
+		"source=scons-build-artifacts,target=/workspaces/godot-vgmstream/build,type=volume"
+	],
+	"remoteUser": "vscode"
+}

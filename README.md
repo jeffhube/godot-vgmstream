@@ -1,56 +1,37 @@
-# godot-cpp template
-This repository serves as a quickstart template for GDExtension development with Godot 4.0+.
+# Godot vgmstream
 
-## Contents
-* Preconfigured source files for C++ development of the GDExtension ([src/](./src/))
-* An empty Godot project in [project/](./project), to test the GDExtension
-* godot-cpp as a submodule (`godot-cpp/`)
-* GitHub Issues template ([.github/ISSUE_TEMPLATE.yml](./.github/ISSUE_TEMPLATE.yml))
-* GitHub CI/CD workflows to publish your library packages when creating a release ([.github/workflows/builds.yml](./.github/workflows/builds.yml))
-* An SConstruct file with various functions, such as boilerplate for [Adding documentation](https://docs.godotengine.org/en/stable/tutorials/scripting/cpp/gdextension_docs_system.html)
+This GDExtension adds an `AudioStreamAWB` resource that decodes AWB audio banks
+with the vendored [vgmstream](https://github.com/vgmstream/vgmstream) library.
 
-## Usage - Template
+## Build
 
-To use this template, log in to GitHub and click the green "Use this template" button at the top of the repository page. This will let you create a copy of this repository with a clean git history.
+Initialize the submodules and build with SCons:
 
-To get started with your new GDExtension, do the following:
-
-* clone your repository to your local computer
-* initialize the godot-cpp git submodule via `git submodule update --init`
-* change the name of the compiled library file inside the [SConstruct](./SConstruct) file by modifying the `libname` string.
-  * change the paths of the to be loaded library name inside the [project/bin/example.gdextension](./project/bin/example.gdextension) file, by replacing `EXTENSION-NAME` with the name you chose for `libname`.
-* change the `entry_symbol` string inside [project/bin/example.gdextension](./project/bin/example.gdextension) file.
-  * rename the `example_library_init` function in [src/register_types.cpp](./src/register_types.cpp) to the same name you chose for `entry_symbol`.
-* change the name of the `project/bin/example.gdextension` file
-
-Now, you can build the project with the following command:
-
-```shell
+```sh
+git submodule update --init --recursive
 scons
 ```
 
-If the build command worked, you can test it with the [project](./project) project. Import it into Godot, open it, and launch the main scene. You should see it print the following line in the console:
+The extension is copied into `project/bin/` by the build. Vgmstream's C sources
+are compiled into the extension; no extra development packages are required.
 
-```
-Type: 24
-```
+## Play an AWB file
 
-### Configuring an IDE
-You can develop your own extension with any text editor and by invoking scons on the command line, but if you want to work with an IDE (Integrated Development Environment), you can use a compilation database file called `compile_commands.json`. Most IDEs should automatically identify this file, and self-configure appropriately.
-To generate the database file, you can run one of the following commands in the project root directory:
-```shell
-# Generate compile_commands.json while compiling
-scons compiledb=yes
+AWB files are loaded directly as `AudioStreamAWB` resources. Assign an `.awb`
+file to an `AudioStreamPlayer`'s **Stream** property in the Inspector, or load it
+in GDScript:
 
-# Generate compile_commands.json without compiling
-scons compiledb=yes compile_commands.json
+```gdscript
+var stream := load("res://audio.awb") as AudioStreamAWB
+$AudioStreamPlayer.stream = stream
+$AudioStreamPlayer.play()
 ```
 
-## Usage - Actions
-
-This repository comes with continuous integration (CI) through a GitHub action that tests building the GDExtension.
-It triggers automatically for each pushed change. You can find and edit it in [builds.yml](.github/workflows/ci.yml).
-
-There is also a workflow ([make_build.yml](.github/workflows/make_build.yml)) that builds the GDExtension for all supported platforms that you can use to create releases.
-You can trigger this workflow manually from the `Actions` tab on GitHub.
-After it is complete, you can find the file `godot-cpp-template.zip` in the `Artifacts` section of the workflow run.
+The stream defaults to subsong 1. To choose another subsong, set the
+`subsong_index` property; indices are 1-based. To save that choice in a scene,
+create an `AudioStreamAWB` resource (for example, `res://audio_subsong.tres`),
+assign the `.awb` resource to its **Source Stream** property, and set its
+**Subsong Index**. The number of subsongs is not detected in the Inspector, so
+an invalid index is reported when playback starts. The file is read through
+Godot's `FileAccess` and decoded at runtime. Multichannel audio is downmixed to
+stereo.

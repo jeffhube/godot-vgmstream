@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="AudioStreamAWB" inherits="AudioStream" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+	<brief_description>
+		Audio stream resource loaded directly from an AWB file.
+	</brief_description>
+	<description>
+		AWB files are loaded as this resource type. Uses vgmstream to decode the selected subsong at runtime. Subsong indices are 1-based; the default is 1.
+	</description>
+	<tutorials>
+	</tutorials>
+	<members>
+		<member name="source_stream" type="AudioStreamAWB" setter="set_source_stream" getter="get_source_stream">
+			AWB file resource to play. Leave empty when using an .awb file directly; assign it when saving a subsong selection in a separate AudioStreamAWB resource.
+		</member>
+		<member name="subsong_index" type="int" setter="set_subsong_index" getter="get_subsong_index" default="1">
+			1-based index of the AWB subsong to play. The resource loader does not enumerate subsongs, so an invalid index is reported when playback starts.
+		</member>
+	</members>
+</class>
