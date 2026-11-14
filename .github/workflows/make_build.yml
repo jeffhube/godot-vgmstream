@@ -1,8 +1,11 @@
 # For syntax, see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
-# This workflow is triggered manually on the "Actions" tab on GitHub, and can be used to create releases.
+# Builds all supported platforms on demand or when a version tag is pushed.
 
 name: Make a GDExtension build for all supported platforms
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
@@ -16,22 +19,17 @@ jobs:
         target:
           [
             { platform: linux, arch: x86_64, os: ubuntu-22.04 },
-            { platform: linux, arch: x86_32, os: ubuntu-22.04 },
             { platform: linux, arch: arm64, os: ubuntu-22.04-arm },
-            { platform: linux, arch: arm32, os: ubuntu-22.04-arm },
             { platform: windows, arch: x86_64, os: ubuntu-22.04 },
-            { platform: windows, arch: x86_32, os: ubuntu-22.04 },
             { platform: windows, arch: arm64, os: ubuntu-22.04 },
             { platform: macos, arch: universal, os: macos-latest },
             { platform: android, arch: x86_64, os: ubuntu-22.04 },
-            { platform: android, arch: x86_32, os: ubuntu-22.04 },
             { platform: android, arch: arm64, os: ubuntu-22.04 },
-            { platform: android, arch: arm32, os: ubuntu-22.04 },
             { platform: ios, arch: arm64, os: macos-latest },
             { platform: web, arch: wasm32, os: ubuntu-22.04 },
           ]
         target-type: [template_debug, template_release]
-        float-precision: [single]
+        float-precision: [single, double]
 
     runs-on: ${{ matrix.target.os }}
     steps:
@@ -80,7 +78,7 @@ jobs:
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
         run: |
-          scons target=${{ matrix.target-type }} platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} ${{ matrix.target.platform == 'windows' && 'use_llvm=yes' || '' }}
+          scons target=${{ matrix.target-type }} platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} ${{ matrix.target.platform == 'web' && 'threads=no' || '' }} ${{ matrix.target.platform == 'windows' && 'use_llvm=yes' || '' }}
 
       - name: Save .scons_cache
         uses: ./godot-cpp/.github/actions/godot-cache-save
@@ -99,11 +97,11 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: godot-cpp-template-${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.float-precision }}-${{ matrix.target-type }}
+          name: godot-vgmstream-${{ matrix.target.platform }}-${{ matrix.target.arch }}-${{ matrix.float-precision }}-${{ matrix.target-type }}
           path: |
             ${{ github.workspace }}/bin/**
 
-  # Merges all the build artifacts together into a single godot-cpp-template artifact.
+  # Merges all the build artifacts together into a single godot-vgmstream artifact.
   # If you comment out this step, all the builds will be uploaded individually.
   merge:
     runs-on: ubuntu-22.04
@@ -112,6 +110,64 @@ jobs:
       - name: Merge Artifacts
         uses: actions/upload-artifact/merge@v7
         with:
-          name: godot-cpp-template
-          pattern: godot-cpp-template-*
+          name: godot-vgmstream
+          pattern: godot-vgmstream-*
           delete-merged: true
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    needs: merge
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate version tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag '$TAG' is not a valid vMAJOR.MINOR.PATCH version." >&2
+            exit 1
+          fi
+
+          if [[ "$TAG" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download merged build
+        uses: actions/download-artifact@v7
+        with:
+          name: godot-vgmstream
+          path: release-files
+
+      - name: Package release assets
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          cp project/bin/godot-vgmstream.gdextension release-files/
+          cd release-files
+          zip -r "$RUNNER_TEMP/godot-vgmstream-${TAG}.zip" .
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          args=(--draft --verify-tag --generate-notes --title "$TAG")
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$TAG" "$RUNNER_TEMP/godot-vgmstream-${TAG}.zip" "${args[@]}"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --draft=false
