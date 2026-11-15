@@ -22,7 +22,7 @@ jobs:
           - target: { platform: linux, arch: x86_64, os: ubuntu-22.04 }
             target-type: template_debug
             float-precision: double
-          - target: { platform: windows, arch: x86_64, os: windows-latest }
+          - target: { platform: windows, arch: x86_64, os: ubuntu-22.04 }
             target-type: template_release
             float-precision: single
           - target: { platform: macos, arch: universal, os: macos-latest }
@@ -59,11 +59,24 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
 
+      - name: Install LLVM-MinGW cross-compiler
+        if: ${{ matrix.target.platform == 'windows' }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/llvm-mingw"
+          archive="$RUNNER_TEMP/llvm-mingw.tar.xz"
+          curl -fsSL https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-ubuntu-22.04-x86_64.tar.xz -o "$archive"
+          echo "919380403de87dca3c581c2053230cd298af5e891286628ba0613b7fed370926  $archive" | sha256sum --check
+          tar -xJf "$archive" --strip-components=1 -C "$RUNNER_TEMP/llvm-mingw"
+          echo "MINGW_PREFIX=$RUNNER_TEMP/llvm-mingw" >> "$GITHUB_ENV"
+
       # Setup dependencies
       - name: Setup godot-cpp
         uses: ./godot-cpp/.github/actions/setup-godot-cpp
         with:
           platform: ${{ matrix.target.platform }}
+          # LLVM-MinGW was installed above; skip the action's GCC MinGW setup.
+          windows-compiler: msvc
           em-version: 3.1.62
 
       # Build GDExtension (with caches)
@@ -79,7 +92,7 @@ jobs:
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
         run: |
-          scons target=${{ matrix.target-type }} platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }}
+          scons target=${{ matrix.target-type }} platform=${{ matrix.target.platform }} arch=${{ matrix.target.arch }} precision=${{ matrix.float-precision }} ${{ matrix.target.platform == 'windows' && 'use_llvm=yes' || '' }}
 
       - name: Save .scons_cache
         uses: ./godot-cpp/.github/actions/godot-cache-save
